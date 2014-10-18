@@ -2,8 +2,13 @@
 Author : S.P. Mohanty (spmohanty91@gmail.com)
 Date : 18th June, 2014
 
+Version : 2
+
 Daemon to monitor the output folder on the NFS server
 for new .tgz files uploaded by the NFS clients after the job is complete
+
+and also parses the jobdata file in the .tgz files and publishes to a broadcasting channel called t4tc_jobdata_broadcast 
+which gets used to build an aggregated statistics which gets relayed to web clients using socket.io
 
 The Daemon pushes a message for each tgz file that is created onto a rabbitmq server
 
@@ -24,9 +29,50 @@ import pika
 from daemonize import Daemonize
 import logging
 import re
+
+import tarfile
+import random
+import json
+
 from config import *
 
-print t4tc_folder
+
+def parseJOBDATA(s):
+        d = {}
+        s = s.split("\n")
+        for k in s:
+                if k.strip()=="":
+                        continue
+                else:
+                        p = k.split("=")
+                        n = int(p[1]) if p[1].isdigit() else p[1]
+                        d[p[0]]=n
+
+        return d
+
+def getJobData(fileName): #absolute path of the file
+    time.sleep(0.2)
+    f = open(fileName,"r")
+    t = tarfile.open(fileName,"r")
+    try:
+        f = t.extractfile("jobdata")
+        data = f.read()
+        return parseJOBDATA(data)           
+    except:
+        ##Add exception for funny tarfile later
+        pass
+    return {}
+
+def compileStatistics(d):
+    result = {}
+    result['events'] = d['events']
+    result['accelerator'] = random.choice( ['CDF', 'STAR', 'UA1', 'DELPHI', 'UA5', 'ALICE', 'TOTEM', 'SLD', 'LHCB', 'ALEPH', 'LHCF', 'ATLAS', 'CMS', 'OPAL', 'D0'] )    
+    temp = list(d['AGENT_JABBER_ID'])
+    random.shuffle(temp)
+    result['jabber_id'] = ''.join(temp)
+    result['timestamp'] = int(time.time()*1000)
+    result = json.dumps(result)
+    return result   
 
 def main():
     global t4tc_folder
@@ -45,6 +91,10 @@ def main():
         connection = pika.BlockingConnection(pika.ConnectionParameters(rabbitmq_server))
         channel = connection.channel()
         channel.queue_declare(queue='t4tc_monitor')
+    channel.exchange_declare(exchange='t4tc_jobdata_broadcast',
+                 type='fanout')
+
+
         logger.debug("Connected to the RabbitMQ Server successfully and checked/created the queue")
     except:
         logger.debug("Unable to connect to the RabbitMQ Server :'(")
@@ -58,15 +108,23 @@ def main():
         def __init__(self, channel):
             self.channel =channel
 
-        def process_IN_CREATE(self, event):
+        #def process_IN_CREATE(self, event):
+        def process_IN_CLOSE_WRITE(self, event):
             #print time.time(), "Creating:", event.pathname
             #print event
             
             ##Only report creation of tgz files....removes a lot of noise
             if(not re.match(".*\.tgz$", event.pathname)):
                 return  
-
+            
             try :
+                #broadcast jobdata
+         
+                self.channel.basic_publish(exchange='t4tc_jobdata_broadcast',
+                      routing_key='t4tc_jobdata_broadcast',
+                      body=compileStatistics(getJobData(event.pathname)).encode('ascii', 'ignore'))
+    
+                #publish to workers for file creation notification
                 self.channel.basic_publish(exchange='',
                       routing_key='t4tc_monitor',
                       body='FILE_CREATED : '+event.pathname)
@@ -105,6 +163,7 @@ def main():
 
 
 
+#main()
 daemon = Daemonize(app="T4TC monitor", pid=t4tc_folder+"/t4tc_monitor.pid", action = main)
 daemon.start()
 
