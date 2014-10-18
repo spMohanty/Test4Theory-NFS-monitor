@@ -2,4 +2,5 @@
 
 t4tc_folder = "PATH_TO_A_WRITABLE_FOLDER_WHERE_YOU_WANT_TO_STORE_LOGS_PID_OF_THIS_DAEMON"
 rabbitmq_server = "DOMAIN_NAME_OF_RABBIT_MQ_SERVER"
+redis_server = "LOCATION_OF_REDIS_SERVER"
 location_of_shared_mcplots_output_folder = "PATH_TO_FOLDER_THAT_YOU_WANT_TO_MONITOR"
