@@ -215,7 +215,7 @@ def main():
 
     ## Testing connection with redis server 
     try:
-    redis_client = redis.StrictRedis(host=redis_server, port=6379, db=0)
+        redis_client = redis.StrictRedis(host=redis_server, port=6379, db=0)
         logger.debug("Connected to the Redis Server")
     except:
         logger.debug("Unable to connect to the Redis Server :'(")
@@ -242,13 +242,13 @@ def main():
             ##Only report creation of tgz files....removes a lot of noise
             if(not re.match(".*\.tgz$", event.pathname)):
                 return  
-           
+            
         try: 
-        # process and push data into redis analytics server
-        update_t4tc_analytics_on_redis(getJobData(event.pathname), redis_client)
-        logger.debug("Updated analytics on redis for "+event.pathname)
+            # process and push data into redis analytics server
+            update_t4tc_analytics_on_redis(getJobData(event.pathname), redis_client)
+            logger.debug("Updated analytics on redis for "+event.pathname)
         except:
-        logger.debug("Unable to update analytics on redis for "+event.pathname+" ")
+            logger.debug("Unable to update analytics on redis for "+event.pathname+" ")
 
             try :
                 #publish to workers for file creation notification
