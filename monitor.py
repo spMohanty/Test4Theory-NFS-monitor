@@ -40,11 +40,15 @@ import re
 from multiprocessing import Process
 
 import tarfile
-import random
 import json
 
 from config import *
 
+import string
+import random
+
+def getEntropy():
+    return ''.join(random.SystemRandom().choice(string.ascii_uppercase + string.digits) for _ in range(16))
 
 """
  Runs as a separate thread and updates the event rate for all the accelerators
@@ -108,21 +112,23 @@ def parseJOBDATA(s):
         return d
 
 def getJobData(fileName): #absolute path of the file
-    
-    ##print "FileName : ", fileName
+    # print "FileName : ", fileName
     t = tarfile.open(fileName,"r")
     try:
         f = t.extractfile("./jobdata")
         data = f.read()
+        # print data
         return parseJOBDATA(data)           
     except:
         ##Add exception for corrupt tarfile later
         ## For now pass silently 
-        #print "Unable to obtain jobdata for....", fileName
+        # print "Unable to obtain jobdata for....", fileName
         pass
     return {}
 
 def update_t4tc_analytics_on_redis(result, redis_client):
+    # print result
+
     ##print result
     # Random Accelerator Name now
     # accelerator_name = random.choice( ['CDF', 'STAR', 'UA1', 'DELPHI', 'UA5', 'ALICE', 'TOTEM', 'SLD', 'LHCB', 'ALEPH', 'LHCF', 'ATLAS', 'CMS', 'OPAL', 'D0'] )
@@ -135,42 +141,71 @@ def update_t4tc_analytics_on_redis(result, redis_client):
     #for namespace in [accelerator_name, "TOTAL"]:
 
     for namespace in ["TOTAL"]:
+        # print "="*80
+
         base_hash = "T4TC_MONITOR/"+namespace+"/"
-        #print base_hash, " ::: BASE HASH"
+        # print base_hash, " ::: BASE HASH"
         # Buffer all commands using a pipeline to increase performance
         pipe = redis_client.pipeline()
 
-        # Total jobs : Succeeded + Failed 
-        pipe.hincrby(base_hash, "jobs_completed", 1)
-        ## Update the sorted set of per user data
-        pipe.zincrby(base_hash+"PER_USER/jobs_completed",result['AGENT_JABBER_ID'],1);
+        try:
+            # Total jobs : Succeeded + Failed 
+            pipe.hincrby(base_hash, "jobs_completed", 1)
+            # redis_client.hincrby(base_hash, "jobs_completed", 1)
 
-        # Check if the job was succcessfull completed
-        if result['exitcode'] == 0:
-            # Job sucessfully completed
-            # increment events
-            pipe.hincrby(base_hash,"events", events) # O(1)
-            ## Update the sorted set of per user data
-            pipe.zincrby(base_hash+"PER_USER/events",result['AGENT_JABBER_ID'],events);
 
-            ## Add job_data to the EventRate_Buffer
-            pipe.zadd(base_hash+"EVENT_BUFFER",int(time.time()*1000), str(result['jobid'])+"_"+str(events))
-            #print "Adding data to event buffer....",base_hash+"EVENT_BUFFER",str(result['jobid'])+"_"+str(events),int(time.time()*1000)    
-        else:
-            # Job failed
-            pipe.hincrby(base_hash, "jobs_failed", 1)  # O(1)
             ## Update the sorted set of per user data
-            pipe.zincrby(base_hash+"PER_USER/jobs_failed",result['AGENT_JABBER_ID'],1);
+            # pipe.zincrby(base_hash+"PER_USER/jobs_completed",result['AGENT_JABBER_ID'],1);  ##Commenting out temporarily because its causing some issue
+            # redis_client.zincrby(base_hash+"PER_USER/jobs_completed",result['AGENT_JABBER_ID'],1);  ##Commenting out temporarily because its causing some issue
+
+            # Check if the job was succcessfull completed
+            if result['exitcode'] == 0:
+                # Job sucessfully completed
+                # increment events
+
+                # pipe.hincrby(base_hash,"events", events) # O(1)
+                pipe.hincrby(base_hash,"events", events) # O(1)
+
+                ## Update the sorted set of per user data
+                # pipe.zincrby(base_hash+"PER_USER/events",result['AGENT_JABBER_ID'],events);
+                # redis_client.zincrby(base_hash+"PER_USER/events",result['AGENT_JABBER_ID'],events);
+
+                ## Add job_data to the EventRate_Buffer
+                pipe.zadd(base_hash+"EVENT_BUFFER",int(time.time()*1000), str(result['jobid'])+"_"+str(events)+"_"+getEntropy())
+                print str(result['jobid'])+"_"+str(events)+"_"+getEntropy()
+
+                # pipe.zadd(base_hash+"EVENT_BUFFER",int(time.time()*1000), str(result['jobid'])+"_"+str(events))
+                #print "Adding data to event buffer....",base_hash+"EVENT_BUFFER",str(result['jobid'])+"_"+str(events),int(time.time()*1000)    
+            else:
+                # Job failed
+                pipe.hincrby(base_hash, "jobs_failed", 1)  # O(1)
+                # redis_client.hincrby(base_hash, "jobs_failed", 1)  # O(1)
+                ## Update the sorted set of per user data
+                # pipe.zincrby(base_hash+"PER_USER/jobs_failed",result['AGENT_JABBER_ID'],1);
+                # redis_client.zincrby(base_hash+"PER_USER/jobs_failed",result['AGENT_JABBER_ID'],1);
+                # print "Failed !!:("
+
+        except Exception as inst:
+            print type(inst)     # the exception instance
+            print inst.args      # arguments stored in .args
+            print inst           # __str__ allows args to be printed directly
+            x, y = inst.args
+            print 'x =', x
+            print 'y =', y
+            foo=1
 
         ## Contributing Users Set   
-        pipe.sadd(base_hash+"users",result['AGENT_JABBER_ID']) # O(N) here N = 1   ## SCARD can be used to get the cardinality of this set in O(1)
+        # pipe.sadd(base_hash+"users",result['AGENT_JABBER_ID']) # O(N) here N = 1   ## SCARD can be used to get the cardinality of this set in O(1)
 
          
     
         #pipe.hget(base_hash, "events_in_last_update")
         #pipe.hget(base_hash, "timestamp_of_last_update")
-
+        
         redis_result = pipe.execute()
+        # print "Result :: ",redis_result
+
+
         """
         timestamp_of_last_update = redis_result[-1] 
         events_in_last_update = redis_result[-2]
@@ -243,10 +278,10 @@ def main():
 
         #def process_IN_CREATE(self, event):
         def process_IN_CLOSE_WRITE(self, event):
-            ###print time.time(), "Creating:", event.pathname
+            print time.time(), "Creating:", event.pathname
             ###print event
             
-            ##Only report creation of tgz files....removes a lot of noise
+            ##Only report creation of tgz files     .removes a lot of noise
             if(not re.match(".*\.tgz$", event.pathname)):
                 return  
             
@@ -256,7 +291,7 @@ def main():
                 logger.debug("Updated analytics on redis for "+event.pathname)
             except:
                 logger.debug("Unable to update analytics on redis for "+event.pathname+" ")
-
+                # print event.pathname
                 try :
                     #publish to workers for file creation notification
                     self.channel.basic_publish(exchange='',
