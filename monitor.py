@@ -56,7 +56,10 @@ def batchUpdates(redis_client,logger):
         time.sleep(1)
         ## Iterate through all accelerators 
         pipe = redis_client.pipeline()
-        accelList = ['CDF', 'STAR', 'UA1', 'DELPHI', 'UA5', 'ALICE', 'TOTEM', 'SLD', 'LHCB', 'ALEPH', 'LHCF', 'ATLAS', 'CMS', 'OPAL', 'D0', 'TOTAL']
+        #accelList = ['CDF', 'STAR', 'UA1', 'DELPHI', 'UA5', 'ALICE', 'TOTEM', 'SLD', 'LHCB', 'ALEPH', 'LHCF', 'ATLAS', 'CMS', 'OPAL', 'D0', 'TOTAL']
+        # Temporarily removing the acceleartor_name update, and instead updating just the total statistics
+
+        accelList = ['TOTAL']
         for namespace in accelList:
             base_hash = "T4TC_MONITOR/"+namespace+"/"
             ##Get all members in the sorted set EVENT_BUFFER (score=timestamp, key=numberofevents__jobid) and compute the average event rate and update
@@ -122,12 +125,16 @@ def getJobData(fileName): #absolute path of the file
 def update_t4tc_analytics_on_redis(result, redis_client):
     ##print result
     # Random Accelerator Name now
-    accelerator_name = random.choice( ['CDF', 'STAR', 'UA1', 'DELPHI', 'UA5', 'ALICE', 'TOTEM', 'SLD', 'LHCB', 'ALEPH', 'LHCF', 'ATLAS', 'CMS', 'OPAL', 'D0'] )
+    # accelerator_name = random.choice( ['CDF', 'STAR', 'UA1', 'DELPHI', 'UA5', 'ALICE', 'TOTEM', 'SLD', 'LHCB', 'ALEPH', 'LHCF', 'ATLAS', 'CMS', 'OPAL', 'D0'] )
     events = result['events']
 
     ## Do the updates for total data and individual accelerator. Imagine the total analytics as a separate accelerator
     ##print [accelerator_name, "TOTAL"]
-    for namespace in [accelerator_name, "TOTAL"]:
+
+    # Temporarily removing the acceleartor_name update, and instead updating just the total statistics
+    #for namespace in [accelerator_name, "TOTAL"]:
+
+    for namespace in ["TOTAL"]:
         base_hash = "T4TC_MONITOR/"+namespace+"/"
         #print base_hash, " ::: BASE HASH"
         # Buffer all commands using a pipeline to increase performance
@@ -243,21 +250,21 @@ def main():
             if(not re.match(".*\.tgz$", event.pathname)):
                 return  
             
-        try: 
-            # process and push data into redis analytics server
-            update_t4tc_analytics_on_redis(getJobData(event.pathname), redis_client)
-            logger.debug("Updated analytics on redis for "+event.pathname)
-        except:
-            logger.debug("Unable to update analytics on redis for "+event.pathname+" ")
-
-            try :
-                #publish to workers for file creation notification
-                self.channel.basic_publish(exchange='',
-                      routing_key='t4tc_monitor',
-                      body='FILE_CREATED : '+event.pathname)
-                logger.debug("FILE_CREATED : "+event.pathname)
+            try: 
+                # process and push data into redis analytics server
+                update_t4tc_analytics_on_redis(getJobData(event.pathname), redis_client)
+                logger.debug("Updated analytics on redis for "+event.pathname)
             except:
-                logger.debug("Unable to publish to RabbitMQ Server on File Create")
+                logger.debug("Unable to update analytics on redis for "+event.pathname+" ")
+
+                try :
+                    #publish to workers for file creation notification
+                    self.channel.basic_publish(exchange='',
+                          routing_key='t4tc_monitor',
+                          body='FILE_CREATED : '+event.pathname)
+                    logger.debug("FILE_CREATED : "+event.pathname)
+                except:
+                    logger.debug("Unable to publish to RabbitMQ Server on File Create")
 
         def process_IN_DELETE(self, event):
             ###print time.time(), "Removing:", event.pathname
@@ -292,7 +299,7 @@ def main():
 
 
 
-#main()
+# main()
 
 daemon = Daemonize(app="T4TC monitor", pid=t4tc_folder+"/t4tc_monitor.pid", action = main)
 daemon.start()
