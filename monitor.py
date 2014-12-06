@@ -127,7 +127,7 @@ def getJobData(fileName): #absolute path of the file
     return {}
 
 def update_t4tc_analytics_on_redis(result, redis_client):
-    # print result
+    print result
 
     ##print result
     # Random Accelerator Name now
@@ -141,7 +141,6 @@ def update_t4tc_analytics_on_redis(result, redis_client):
     #for namespace in [accelerator_name, "TOTAL"]:
 
     for namespace in ["TOTAL"]:
-        # print "="*80
 
         base_hash = "T4TC_MONITOR/"+namespace+"/"
         # print base_hash, " ::: BASE HASH"
@@ -153,10 +152,12 @@ def update_t4tc_analytics_on_redis(result, redis_client):
             pipe.hincrby(base_hash, "jobs_completed", 1)
             # redis_client.hincrby(base_hash, "jobs_completed", 1)
 
-
-            ## Update the sorted set of per user data
-            # pipe.zincrby(base_hash+"PER_USER/jobs_completed",result['AGENT_JABBER_ID'],1);  ##Commenting out temporarily because its causing some issue
-            # redis_client.zincrby(base_hash+"PER_USER/jobs_completed",result['AGENT_JABBER_ID'],1);  ##Commenting out temporarily because its causing some issue
+            if 'USER_ID' in result.keys():
+                ## Update the sorted set of per user data
+                pipe.zincrby(base_hash+"PER_USER/jobs_completed",result['USER_ID'],1);  
+                # redis_client.zincrby(base_hash+"PER_USER/jobs_completed",result['AGENT_JABBER_ID'],1);  ##Commenting out temporarily because its causing some issue
+            else:
+                print "No USER_ID :("
 
             # Check if the job was succcessfull completed
             if result['exitcode'] == 0:
@@ -166,9 +167,12 @@ def update_t4tc_analytics_on_redis(result, redis_client):
                 # pipe.hincrby(base_hash,"events", events) # O(1)
                 pipe.hincrby(base_hash,"events", events) # O(1)
 
-                ## Update the sorted set of per user data
-                # pipe.zincrby(base_hash+"PER_USER/events",result['AGENT_JABBER_ID'],events);
-                # redis_client.zincrby(base_hash+"PER_USER/events",result['AGENT_JABBER_ID'],events);
+                if 'USER_ID' in result.keys():
+                    ## Update the sorted set of per user data
+                    pipe.zincrby(base_hash+"PER_USER/events",result['USER_ID'],events);
+                    # redis_client.zincrby(base_hash+"PER_USER/events",result['AGENT_JABBER_ID'],events);
+                else:
+                    print "No USER_ID :("
 
                 ## Add job_data to the EventRate_Buffer
                 pipe.zadd(base_hash+"EVENT_BUFFER",int(time.time()*1000), str(result['jobid'])+"_"+str(events)+"_"+getEntropy())
@@ -180,11 +184,15 @@ def update_t4tc_analytics_on_redis(result, redis_client):
                 # Job failed
                 pipe.hincrby(base_hash, "jobs_failed", 1)  # O(1)
                 # redis_client.hincrby(base_hash, "jobs_failed", 1)  # O(1)
-                ## Update the sorted set of per user data
-                # pipe.zincrby(base_hash+"PER_USER/jobs_failed",result['AGENT_JABBER_ID'],1);
-                # redis_client.zincrby(base_hash+"PER_USER/jobs_failed",result['AGENT_JABBER_ID'],1);
-                # print "Failed !!:("
 
+                if 'USER_ID' in result.keys():
+                    ## Update the sorted set of per user data
+                    pipe.zincrby(base_hash+"PER_USER/jobs_failed",result['USER_ID'],1);
+                    # redis_client.zincrby(base_hash+"PER_USER/jobs_failed",result['AGENT_JABBER_ID'],1);
+                    # print "Failed !!:("
+                else:
+                    print "No USER_ID :("
+                    
         except Exception as inst:
             print type(inst)     # the exception instance
             print inst.args      # arguments stored in .args
