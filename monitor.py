@@ -166,7 +166,7 @@ def update_t4tc_analytics_on_redis(result, redis_client):
                 if 'cpuusage' in result.keys() and RepresentsFloat(result['cpuusage']):
                     pipe.zincrby(base_hash+"PER_USER/cpuusage",result['USER_ID'],float(result['cpuusage']));  
                 if 'diskusage' in result.keys() and RepresentsFloat(result['diskusage']):
-                    pipe.zincrby(base_hash+"PER_USER/diskusage",result['USER_ID'],float(result['diskusage']);  
+                    pipe.zincrby(base_hash+"PER_USER/diskusage",result['USER_ID'],float(result['diskusage']));  
                 # redis_client.zincrby(base_hash+"PER_USER/jobs_completed",result['AGENT_JABBER_ID'],1);  ##Commenting out temporarily because its causing some issue
             else:
                 print "No USER_ID :("
