@@ -228,11 +228,14 @@ def update_t4tc_analytics_on_redis(result, redis_client):
             pipe.scard(base_hash+"USERS")
 
             results = pipe.execute()
-            if results[2] > results[1]: ##If the user is a new user
-                pipe = redis_client.pipeline()
-                pipe.set(base_hash+"/NEW_USERS/"+result['USER_ID'])
-                pipe.expire(base_hash+"/NEW_USERS/"+result['USER_ID'], 60*60*24) ## Will stay as a new user for 1 day
-                pipe.execute()
+            try:
+                if int(results[2]) > int(results[0]): ##If the cardinality of the user set increased then user is a new user
+                    pipe = redis_client.pipeline()
+                    pipe.set(base_hash+"/NEW_USERS/"+result['USER_ID'])
+                    pipe.expire(base_hash+"/NEW_USERS/"+result['USER_ID'], 60*60*24) ## Will stay as a new user for 1 day
+                    pipe.execute()
+            except:
+                pass #pass silently
 
         ## Contributing Users Set   
         # pipe.sadd(base_hash+"users",result['AGENT_JABBER_ID']) # O(N) here N = 1   ## SCARD can be used to get the cardinality of this set in O(1)
