@@ -223,16 +223,15 @@ def update_t4tc_analytics_on_redis(result, redis_client):
 
         if 'USER_ID' in result.keys():
             pipe = redis_client.pipeline()
-            pipe.scard(base_hash+"USERS")
-            pipe.sadd(base_hash+"USERS",result['USER_ID']) # O(N) here N = 1   ## SCARD can be used to get the cardinality of this set in O(1)
-            pipe.scard(base_hash+"USERS")
-
+            pipe.sismember(base_hash+"USERS", result['USER_ID'])
             results = pipe.execute()
+            print "ISMEMBER : ",results
             try:
-                if int(results[2]) > int(results[0]): ##If the cardinality of the user set increased then user is a new user
+                if int(results[0])!=1: ##If the user doesnt exist in the users set
                     pipe = redis_client.pipeline()
-                    pipe.set(base_hash+"/NEW_USERS/"+result['USER_ID'])
-                    pipe.expire(base_hash+"/NEW_USERS/"+result['USER_ID'], 60*60*24) ## Will stay as a new user for 1 day
+                    pipe.sadd(base_hash+"USERS",result['USER_ID']) # O(N) here N = 1   ## SCARD can be used to get the cardinality of this set in O(1)
+                    pipe.set(base_hash+"NEW_USERS/"+result['USER_ID'], 1)
+                    pipe.expire(base_hash+"NEW_USERS/"+result['USER_ID'], 60*60*24) ## Will stay as a new user for 1 day
                     pipe.execute()
             except:
                 pass #pass silently
