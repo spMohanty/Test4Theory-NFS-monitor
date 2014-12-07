@@ -152,9 +152,21 @@ def update_t4tc_analytics_on_redis(result, redis_client):
             pipe.hincrby(base_hash, "jobs_completed", 1)
             # redis_client.hincrby(base_hash, "jobs_completed", 1)
 
+            def RepresentsFloat(s):
+                try: 
+                    float(s)
+                    return True
+                except ValueError:
+                    return False
+
+
             if 'USER_ID' in result.keys():
                 ## Update the sorted set of per user data
                 pipe.zincrby(base_hash+"PER_USER/jobs_completed",result['USER_ID'],1);  
+                if 'cpuusage' in result.keys() and RepresentsFloat(result['cpuusage']):
+                    pipe.zincrby(base_hash+"PER_USER/cpuusage",result['USER_ID'],float(result['cpuusage']));  
+                if 'diskusage' in result.keys() and RepresentsFloat(result['diskusage']):
+                    pipe.zincrby(base_hash+"PER_USER/diskusage",result['USER_ID'],float(result['diskusage']);  
                 # redis_client.zincrby(base_hash+"PER_USER/jobs_completed",result['AGENT_JABBER_ID'],1);  ##Commenting out temporarily because its causing some issue
             else:
                 print "No USER_ID :("
@@ -192,7 +204,7 @@ def update_t4tc_analytics_on_redis(result, redis_client):
                     # print "Failed !!:("
                 else:
                     print "No USER_ID :("
-                    
+
         except Exception as inst:
             print type(inst)     # the exception instance
             print inst.args      # arguments stored in .args
@@ -202,10 +214,6 @@ def update_t4tc_analytics_on_redis(result, redis_client):
             print 'y =', y
             foo=1
 
-        ## Contributing Users Set   
-        # pipe.sadd(base_hash+"users",result['AGENT_JABBER_ID']) # O(N) here N = 1   ## SCARD can be used to get the cardinality of this set in O(1)
-
-         
     
         #pipe.hget(base_hash, "events_in_last_update")
         #pipe.hget(base_hash, "timestamp_of_last_update")
@@ -213,6 +221,23 @@ def update_t4tc_analytics_on_redis(result, redis_client):
         redis_result = pipe.execute()
         # print "Result :: ",redis_result
 
+        if 'USER_ID' in result.keys():
+            pipe = redis_client.pipeline()
+            pipe.scard(base_hash+"USERS")
+            pipe.sadd(base_hash+"USERS",result['USER_ID']) # O(N) here N = 1   ## SCARD can be used to get the cardinality of this set in O(1)
+            pipe.scard(base_hash+"USERS")
+
+            results = pipe.execute()
+            if results[2] > results[1]: ##If the user is a new user
+                pipe = redis_client.pipeline()
+                pipe.set(base_hash+"/NEW_USERS/"+result['USER_ID'])
+                pipe.expire(base_hash+"/NEW_USERS/"+result['USER_ID'], 60*60*24) ## Will stay as a new user for 1 day
+                pipe.execute()
+
+        ## Contributing Users Set   
+        # pipe.sadd(base_hash+"users",result['AGENT_JABBER_ID']) # O(N) here N = 1   ## SCARD can be used to get the cardinality of this set in O(1)
+
+         
 
         """
         timestamp_of_last_update = redis_result[-1] 
