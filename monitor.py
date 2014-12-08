@@ -55,7 +55,7 @@ def getEntropy():
 """
 def batchUpdates(redis_client,logger):
     frequency = 1 ##Compute every 1 second
-    Event_Buffer_Expiry_Time = 60 *1000 # After how many mili seconds remove the event from the buffer
+    Event_Buffer_Expiry_Time = 2 * 60 *1000 # After how many mili seconds remove the event from the buffer
     while True:
         time.sleep(1)
         ## Iterate through all accelerators 
@@ -139,6 +139,19 @@ def update_t4tc_analytics_on_redis(result, redis_client):
 
     # Temporarily removing the acceleartor_name update, and instead updating just the total statistics
     #for namespace in [accelerator_name, "TOTAL"]:
+
+
+    try:
+
+        if('USER_ID' in result.keys() and result['USER_ID'].strip()!=""):
+            pass ##Do nothing we are all good
+        elif 'BOINC_USERID' in result.keys():
+            result['USER_ID'] = "b-%s" % result['BOINC_USERID']
+        elif result['USER_ID'].strip() == "":
+            del result['USER_ID']
+    except:
+        pass # pass silently
+
 
     for namespace in ["TOTAL"]:
 
@@ -369,7 +382,7 @@ def main():
 
 
 
-# main()
+# main()n
 
 daemon = Daemonize(app="T4TC monitor", pid=t4tc_folder+"/t4tc_monitor.pid", action = main)
 daemon.start()
