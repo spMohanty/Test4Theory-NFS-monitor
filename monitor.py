@@ -91,7 +91,7 @@ def batchUpdates(redis_client,logger):
                             minTime = timestamp
                         if timestamp > maxTime :
                             maxTime = timestamp
-                    eventRate = (totalEvents/(maxTime-minTime))* 1000 * 60 ## Per minute
+                    eventRate = ((totalEvents*1.0)/(maxTime-minTime))* 1000 * 60 ## Per minute
 
                 base_hash = "T4TC_MONITOR/"+acceleratorName+"/"
                 pipe.hset(base_hash, "event_rate", eventRate)   
