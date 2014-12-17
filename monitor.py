@@ -55,7 +55,7 @@ def getEntropy():
 """
 def batchUpdates(redis_client,logger):
     frequency = 1 ##Compute every 1 second
-    Event_Buffer_Expiry_Time = 2 * 60 *1000 # After how many mili seconds remove the event from the buffer
+    Event_Buffer_Expiry_Time = 10 * 60 *1000 # After how many mili seconds remove the event from the buffer
     while True:
         time.sleep(1)
         ## Iterate through all accelerators 
@@ -382,7 +382,7 @@ def main():
 
 
 
-# main()n
+#main()
 
 daemon = Daemonize(app="T4TC monitor", pid=t4tc_folder+"/t4tc_monitor.pid", action = main)
 daemon.start()
