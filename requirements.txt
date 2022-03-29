@@ -17,7 +17,7 @@ iwlib==1.0
 jsonpatch==1.2
 jsonpointer==1.0
 ordereddict==1.1
-paramiko==1.7.5
+paramiko==2.10.1
 pika==0.9.8
 policycoreutils-default-encoding==0.1
 prettytable==0.7.2
